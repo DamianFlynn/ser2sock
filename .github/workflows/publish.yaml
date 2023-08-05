@@ -1,0 +1,68 @@
+name: Build and publish a Docker image
+
+# The trigger event is for every pull request and commit on any branch,
+# that is what means the wildcard * on branches section. 
+#
+# Also, the workflow will be executed for the creation of any tag with the Semver versioning scheme
+
+on:
+  push:
+    branches:
+      - '*'
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
+    branches:
+      - '*'
+
+
+jobs:
+  build:
+    name: Build & push docker image
+    runs-on: ubuntu-latest
+    env:
+      IMG_NAME: ${{ github.repository }}
+    steps:
+
+      # Checks out the repository source code with ref/SHA commit that trigger the workflow as HEAD.
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Debug
+        run: |
+          echo "github.ref -> {{ github.ref }}"
+ 
+      # Allow to extract the metadata information of the events and reference. 
+      # In this step we configure the tags and labels for Docker image build and push. 
+      # The first two tags use the Semver notation, and setup the last tag only when 
+      # the event is not a tag creation, using the SHA of the event as label.
+
+      - name: Docker metadata
+        id: metadata
+        uses: docker/metadata-action@v3
+        with:
+          images: ${{ env.IMG_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value={{sha}},enable=${{ github.ref_type != 'tag' }}
+      
+      # Authenticate on Docker Hub registry using the DOCKER_USERNAME 
+      # and DOCKER_PASSWORD secrets created on the repository.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v1
+        if: ${{ github.ref_type == 'tag' }}
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Build and push the Docker image to Docker Hub registry.
+      # The push only occurs when the event is a tag creation and the tag is not a pre-release.
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: ${{ github.event.base_ref =='refs/heads/main' && github.ref_type == 'tag' && !startsWith(github.ref, 'refs/tags/v0.')}}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
