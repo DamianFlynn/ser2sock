@@ -27,10 +27,13 @@ RUN \
   rm -rf ser2sock
 
 # Add files to the container.
-COPY ./entrypoint.sh /docker-entrypoint
+COPY /src/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+RUN \
+  chmod +x /usr/local/bin/entrypoint.sh
+ 
 # Expose the listener port
 EXPOSE ${LISTENER_PORT}
 
 # Set the entrypoint script.
-ENTRYPOINT ["/docker-entrypoint"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
